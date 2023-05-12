@@ -71,7 +71,17 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       
       if (!userIds) return; 
       
-      const filteredUserIds = JSON.parse(userIds).filter((client:string) => client != userId);
+      const currentClientIds = new Set();
+      fastify.websocketServer.clients.forEach(client => {
+        if (client.roomKey !== connection.socket.roomKey) return; 
+        currentClientIds.add(client.userId);
+        client.send(JSON.stringify({
+          type: Message.Type.LEFT_ROOM,
+          body: { userId }
+        }));
+      });
+
+      const filteredUserIds = JSON.parse(userIds).filter((client:string) => client != userId && currentClientIds.has(client));
       
       if (!filteredUserIds.length) {
         redis.del(connection.socket.roomKey); // deletes room if no users left
@@ -80,14 +90,6 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       // switches host to a random user that is left in the room
       if (host === userId) redis.hset(connection.socket.roomKey, "host", filteredUserIds[0]);
       redis.hset(connection.socket.roomKey, "userIds", JSON.stringify(filteredUserIds));
-
-      fastify.websocketServer.clients.forEach(client => {
-        if (client.roomKey !== connection.socket.roomKey) return; 
-        client.send(JSON.stringify({
-          type: Message.Type.LEFT_ROOM,
-          body: { userId }
-        }));
-      });
     };
 
     const performBatchTransform = setInterval(() => {
@@ -105,21 +107,21 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         ws.lastPost = cycleTime; 
         ws.batchTransforms = [];
       });
-    }, 50);
+    }, 33);
 
     const pingPong = setInterval(() => {
       fastify.websocketServer.clients.forEach(async (ws) => {
         if (ws.isAlive === false) {
           console.log(`${ws.userId} connection broken, terminating`);
-          await disconnectProcedure();
-          ws.terminate();
+          //await disconnectProcedure();
+         // ws.terminate(); // connection sometimes terminating even if connection is still alive, might be a client side problem
           clearInterval(pingPong);
           clearInterval(performBatchTransform);
         }
         ws.isAlive = false;
         ws.ping();
       });
-    }, 1000);
+    }, 5000);
 
     connection.socket.on("close", async () => {
       clearInterval(pingPong);
