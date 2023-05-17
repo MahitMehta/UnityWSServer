@@ -9,6 +9,7 @@ interface IClientSocket {
   username?: string; 
   isAlive: boolean; 
   lastPost: number; 
+  properties: Map<string, string>;
   batchTransforms: Message.BatchTransform[]
 }
 
@@ -60,6 +61,7 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     connection.socket.userId = userId;
     connection.socket.batchTransforms = [];
     connection.socket.lastPost = performance.now();
+    connection.socket.properties = new Map();
 
     connection.socket.on('pong', () => {
       connection.socket.isAlive = true; 
@@ -95,7 +97,7 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     const performBatchTransform = setInterval(() => {
       fastify.websocketServer.clients.forEach((ws) => {
         const cycleTime = performance.now();
-        if (cycleTime - ws.lastPost < 50 || !ws.batchTransforms.length) return; 
+        if (cycleTime - ws.lastPost < 33 || !ws.batchTransforms.length) return; 
 
         ws.send(JSON.stringify({
           type: Message.Type.BATCH_TRANSFORM,
@@ -176,7 +178,7 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
 
         connection.socket.roomKey = roomKey; 
         console.log(`${(connection.socket as any).userId} joined ${roomKey}`);
-
+        
         fastify.websocketServer.clients.forEach(client => {
           if (client.roomKey != roomKey) return; 
 
@@ -191,6 +193,13 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
               if (client.roomKey !== connection.socket.roomKey || client.userId === userId) return; 
               client.batchTransforms.push(...body.transformations);
           }); 
+      } else if (message.type === Message.Type.SET_USER_PROPERTY) {
+        const body = message.body as Message.UserPropertyBody;
+          fastify.websocketServer.clients.forEach(client => {
+            if (client.roomKey !== connection.socket.roomKey) return; 
+            client.properties.set(body.property, body.value);
+            client.send(JSON.stringify(message)); // santize body (specically userId)
+        }); 
       }
     });
   })
