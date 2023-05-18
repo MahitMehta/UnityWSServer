@@ -1,4 +1,13 @@
 export namespace Message {
+  export interface MessagesContainer {
+    messages: Message<RoomBody | UserPropertyBody | BatchTransformationBody>[];
+  }
+
+  export interface Message<T> {
+    type: Type,
+    body: T
+  }
+
   export interface Message<T> {
     type: Type,
     body: T
@@ -26,10 +35,11 @@ export namespace Message {
 
   export interface BatchTransform
     {
-        type: "position" | "rotation" | "velocity"; // position | rotation
+        type: "transform"; // transform
         go: string;  // gameobject name
         userId: string;
-        vector: number[]; 
+        position?: number[]; // type = transform
+        rotation?: number[]; // type = transform
         ts: number; 
     }
   
