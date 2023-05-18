@@ -1,6 +1,6 @@
 export namespace Message {
   export interface MessagesContainer {
-    messages: Message<RoomBody | UserPropertyBody | BatchTransformationBody>[];
+    messages: Message<RoomBody | UserPropertyBody | BatchTransformationBody | BroadcastMethodCallBody>[];
   }
 
   export interface Message<T> {
@@ -17,6 +17,10 @@ export namespace Message {
     name: string; 
   }
 
+  export interface BroadcastMethodCallBody {
+    method: string; // name of the method to be called
+  }
+
   export interface UserPropertyBody {
     property: "username",
     value: string; 
@@ -31,6 +35,7 @@ export namespace Message {
       LEFT_ROOM = "left_room",
       SET_USER_PROPERTY = "set_user_property",
       BATCH_TRANSFORM = "batch_transform",
+      BROADCAST_METHOD_CALL = "broadcast_method_call",
     }
 
   export interface BatchTransform

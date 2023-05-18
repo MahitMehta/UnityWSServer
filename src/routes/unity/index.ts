@@ -226,6 +226,14 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
                 messages: [message]
               })); // santize body (specically userId)
           }); 
+        } else if (message.type === Message.Type.BROADCAST_METHOD_CALL) {
+            // const body = message.body as Message.BroadcastMethodCallBody;
+              fastify.websocketServer.clients.forEach(client => {
+                if (client.roomKey !== connection.socket.roomKey) return; 
+                client.send(JSON.stringify({
+                  messages: [message]
+                })); // santize body 
+            }); 
         }
       }); 
     });
