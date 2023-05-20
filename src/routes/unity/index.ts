@@ -105,7 +105,7 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     const performBatchTransform = setInterval(() => {
       fastify.websocketServer.clients.forEach((ws) => {
         const cycleTime = performance.now();
-        if (cycleTime - ws.lastPost < 33 || !ws.batchTransforms.length) return; 
+        if (cycleTime - ws.lastPost < 25 || !ws.batchTransforms.length) return; 
 
         ws.send(JSON.stringify({
           messages: [{
@@ -119,7 +119,7 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         ws.lastPost = cycleTime; 
         ws.batchTransforms = [];
       });
-    }, 33);
+    }, 25);
 
     // TODO: Redo Heartbeat code
     const pingPong = setInterval(() => {
@@ -145,6 +145,7 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     });
 
     connection.socket.on('message', async buffer => {
+      
       const { messages = [] } : Message.MessagesContainer = JSON.parse(buffer.toString()); 
 
       messages.forEach(async message => {
