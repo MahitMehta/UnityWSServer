@@ -8,7 +8,7 @@ interface IClientSocket {
   roomKey: string; 
   username?: string; 
   isAlive: boolean; 
-  lastPost: number; 
+  tick: number; 
   properties: Map<string, string>;
   batchTransforms: Message.BatchTransform[]
 }
@@ -20,6 +20,8 @@ declare module "ws" {
 declare module "@fastify/websocket" {
   export interface WebSocket extends DefaultWebSocket, IClientSocket {}
 }
+
+const TICK_INTERVAL = 25; // milliseconds
 
 const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
   fastify.get("/room/all", async function (req, res) {
@@ -66,12 +68,12 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     const userId = (req.query as any).userId; 
     connection.socket.userId = userId;
     connection.socket.batchTransforms = [];
-    connection.socket.lastPost = performance.now();
+    connection.socket.tick = 0; 
     connection.socket.properties = new Map();
 
-    connection.socket.on('pong', () => {
-      connection.socket.isAlive = true; 
-    });
+    // connection.socket.on('pong', () => {
+    //   connection.socket.isAlive = true; 
+    // });
 
     const disconnectProcedure = async () => {
       if (!connection.socket.roomKey) return; 
@@ -103,49 +105,47 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     };
 
     const performBatchTransform = setInterval(() => {
-      fastify.websocketServer.clients.forEach((ws) => {
-        const cycleTime = performance.now();
-        if (cycleTime - ws.lastPost < 25 || !ws.batchTransforms.length) return; 
+        connection.socket.tick++; 
+        if (!connection.socket.batchTransforms.length) return; 
 
-        ws.send(JSON.stringify({
+        // console.log(connection.socket.tick);
+        connection.socket.send(JSON.stringify({
           messages: [{
             type: Message.Type.BATCH_TRANSFORM,
             body: {
-              transformations: ws.batchTransforms
+              transformations: connection.socket.batchTransforms
             }
           }]
         })); 
 
-        ws.lastPost = cycleTime; 
-        ws.batchTransforms = [];
-      });
-    }, 25);
+        connection.socket.batchTransforms = [];
+    }, TICK_INTERVAL);
 
-    // TODO: Redo Heartbeat code
-    const pingPong = setInterval(() => {
-      fastify.websocketServer.clients.forEach(async (ws) => {
-        if (ws.isAlive === false) {
-          console.log(`${ws.userId} connection broken, terminating`);
-          //await disconnectProcedure();
-         // ws.terminate(); // connection sometimes terminating even if connection is still alive, might be a client side problem
-          clearInterval(pingPong);
-          clearInterval(performBatchTransform);
-        }
-        ws.isAlive = false;
-        ws.ping();
-      });
+    // TODO: Evalute Need for Heartbeat Code
+    /*
+    const pingPong = setInterval(async () => {
+      if (connection.socket.isAlive === false) {
+        console.log(`${connection.socket.userId} connection broken, terminating`);
+        await disconnectProcedure();
+        connection.socket.terminate(); // connection sometimes terminating even if connection is still alive, might be a client side problem
+
+        clearInterval(pingPong);
+        clearInterval(performBatchTransform);
+      }
+      connection.socket.isAlive = false;
+      connection.socket.ping();
     }, 5000);
+    */
 
     connection.socket.on("close", async () => {
-      clearInterval(pingPong);
+      //clearInterval(pingPong);
       clearInterval(performBatchTransform);
-      console.log(`Connection closed by ${userId}`);
 
+      console.log(`Connection closed by ${userId}`);
       await disconnectProcedure();
     });
 
     connection.socket.on('message', async buffer => {
-      
       const { messages = [] } : Message.MessagesContainer = JSON.parse(buffer.toString()); 
 
       messages.forEach(async message => {
@@ -215,13 +215,13 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         } else if (message.type === Message.Type.BATCH_TRANSFORM) {
             const body = message.body as Message.BatchTransformationBody;
             fastify.websocketServer.clients.forEach(client => {
-                if (client.roomKey !== connection.socket.roomKey || client.userId === userId) return; 
+                if (!connection.socket.roomKey || client.roomKey !== connection.socket.roomKey || client.userId === userId) return; 
                 client.batchTransforms.push(...body.transformations);
             }); 
         } else if (message.type === Message.Type.SET_USER_PROPERTY) {
           const body = message.body as Message.UserPropertyBody;
             fastify.websocketServer.clients.forEach(client => {
-              if (client.roomKey !== connection.socket.roomKey) return; 
+              if (!connection.socket.roomKey || client.roomKey !== connection.socket.roomKey) return; 
               client.properties.set(body.property, body.value);
               client.send(JSON.stringify({
                 messages: [message]
@@ -230,7 +230,7 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         } else if (message.type === Message.Type.BROADCAST_METHOD_CALL) {
             // const body = message.body as Message.BroadcastMethodCallBody;
               fastify.websocketServer.clients.forEach(client => {
-                if (client.roomKey !== connection.socket.roomKey) return; 
+                if (!connection.socket.roomKey || client.roomKey !== connection.socket.roomKey) return; 
                 client.send(JSON.stringify({
                   messages: [message]
                 })); // santize body 
