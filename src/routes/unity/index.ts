@@ -8,7 +8,6 @@ interface IClientSocket {
   roomKey: string; 
   username?: string; 
   isAlive: boolean; 
-  tick: number; 
   properties: Map<string, string>;
   batchTransforms: Message.BatchTransform[]
 }
@@ -20,8 +19,6 @@ declare module "ws" {
 declare module "@fastify/websocket" {
   export interface WebSocket extends DefaultWebSocket, IClientSocket {}
 }
-
-const TICK_INTERVAL = 25; // milliseconds
 
 const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
   fastify.get("/room/all", async function (req, res) {
@@ -68,7 +65,6 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     const userId = (req.query as any).userId; 
     connection.socket.userId = userId;
     connection.socket.batchTransforms = [];
-    connection.socket.tick = 0; 
     connection.socket.properties = new Map();
 
     // connection.socket.on('pong', () => {
@@ -104,23 +100,6 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       redis.hset(connection.socket.roomKey, "userIds", JSON.stringify(filteredUserIds));
     };
 
-    const performBatchTransform = setInterval(() => {
-        connection.socket.tick++; 
-        if (!connection.socket.batchTransforms.length) return; 
-
-        // console.log(connection.socket.tick);
-        connection.socket.send(JSON.stringify({
-          messages: [{
-            type: Message.Type.BATCH_TRANSFORM,
-            body: {
-              transformations: connection.socket.batchTransforms
-            }
-          }]
-        })); 
-
-        connection.socket.batchTransforms = [];
-    }, TICK_INTERVAL);
-
     // TODO: Evalute Need for Heartbeat Code
     /*
     const pingPong = setInterval(async () => {
@@ -130,7 +109,7 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         connection.socket.terminate(); // connection sometimes terminating even if connection is still alive, might be a client side problem
 
         clearInterval(pingPong);
-        clearInterval(performBatchTransform);
+        clearBatchTransform();
       }
       connection.socket.isAlive = false;
       connection.socket.ping();
@@ -139,7 +118,6 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
 
     connection.socket.on("close", async () => {
       //clearInterval(pingPong);
-      clearInterval(performBatchTransform);
 
       console.log(`Connection closed by ${userId}`);
       await disconnectProcedure();

@@ -5,6 +5,8 @@ import AutoLoad, {AutoloadPluginOptions} from '@fastify/autoload';
 import { FastifyPluginAsync } from 'fastify';
 import FastifyWebSocket from "@fastify/websocket";
 import FastifyRedis from "@fastify/redis"
+import { Message } from './interfaces/unity/Message';
+import { intervalTimer } from './utils/common';
 
 export type AppOptions = {
 } & Partial<AutoloadPluginOptions>;
@@ -12,6 +14,10 @@ export type AppOptions = {
 
 const options: AppOptions = {
 }
+
+const TICK_INTERVAL = 25; // milliseconds
+let ticks = 0; 
+let tickInterval:Function; 
 
 const app: FastifyPluginAsync<AppOptions> = async (
     fastify,
@@ -27,8 +33,42 @@ const app: FastifyPluginAsync<AppOptions> = async (
 
   fastify.register(FastifyWebSocket, {
     options: { 
-      maxPayload: 1048576,
-    }
+      maxPayload: 1048576, 
+    },
+  }).addHook("onRegister", () => {
+    if (!!tickInterval) return; 
+    tickInterval = intervalTimer(() => {
+      if (fastify.websocketServer.clients.size === 0) {
+        ticks = 0;
+        return;  
+      }
+  
+      ticks++; 
+  
+      fastify.websocketServer.clients.forEach(connection => {
+        if (!connection.batchTransforms.length) return; 
+  
+        const messages:object[] = [{
+          type: Message.Type.BATCH_TRANSFORM,
+          body: {
+            transformations: connection.batchTransforms
+          }
+        }]
+
+        if (ticks % 200 == 0) messages.push({
+          type: Message.Type.SYNC_TICK,
+          body: {
+            ticks
+          }
+        })
+
+        connection.send(JSON.stringify({
+          messages
+        })); 
+    
+        connection.batchTransforms = [];
+      });
+    }, TICK_INTERVAL);
   });
 
   void fastify.register(AutoLoad, {

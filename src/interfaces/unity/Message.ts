@@ -36,6 +36,7 @@ export namespace Message {
       SET_USER_PROPERTY = "set_user_property",
       BATCH_TRANSFORM = "batch_transform",
       BROADCAST_METHOD_CALL = "broadcast_method_call",
+      SYNC_TICK = "sync_tick",
     }
 
   export interface BatchTransform
