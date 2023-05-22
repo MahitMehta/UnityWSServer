@@ -198,8 +198,15 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
             }); 
         } else if (message.type === Message.Type.SET_USER_PROPERTY) {
           const body = message.body as Message.UserPropertyBody;
+            // send to user who changed the property
+            connection.socket.properties.set(body.property, body.value);
+            connection.socket.send(JSON.stringify({
+              messages: [message]
+            })); // santize body 
+
+            // send to clients in room
             fastify.websocketServer.clients.forEach(client => {
-              if (!connection.socket.roomKey || client.roomKey !== connection.socket.roomKey) return; 
+              if (!connection.socket.roomKey || client.roomKey !== connection.socket.roomKey || connection.socket.userId === client.userId) return; 
               client.properties.set(body.property, body.value);
               client.send(JSON.stringify({
                 messages: [message]
