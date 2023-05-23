@@ -28,20 +28,20 @@ export namespace Message {
   }
   
   export enum Type {
-      JOIN_ROOM = "join_room",
-      JOINED_ROOM = "joined_room",
-      CREATE_ROOM = "create_room",
-      CREATED_ROOM = "created_room",
-      LEFT_ROOM = "left_room",
-      SET_USER_PROPERTY = "set_user_property",
-      BATCH_TRANSFORM = "batch_transform",
-      BROADCAST_METHOD_CALL = "broadcast_method_call",
-      SYNC_TICK = "sync_tick",
+      JOIN_ROOM,
+      JOINED_ROOM,
+      CREATE_ROOM,
+      CREATED_ROOM,
+      LEFT_ROOM,
+      SET_USER_PROPERTY,
+      BATCH_TRANSFORM,
+      BROADCAST_METHOD_CALL,
+      SYNC_TICK
     }
 
   export interface BatchTransform
     {
-        type: "transform"; // transform
+        type: "transform" | "instantiate"; // transform, instantiate
         go: string;  // gameobject name
         userId: string;
         position?: number[]; // type = transform

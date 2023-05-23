@@ -46,14 +46,15 @@ const app: FastifyPluginAsync<AppOptions> = async (
       ticks++; 
   
       fastify.websocketServer.clients.forEach(connection => {
-        if (!connection.batchTransforms.length) return; 
-  
-        const messages:object[] = [{
+        const messages:object[] = []
+
+        if (connection.batchTransforms.length) messages.push({
           type: Message.Type.BATCH_TRANSFORM,
           body: {
+            ticks,
             transformations: connection.batchTransforms
           }
-        }]
+        })
 
         if (ticks % 200 == 0) messages.push({
           type: Message.Type.SYNC_TICK,
@@ -62,7 +63,7 @@ const app: FastifyPluginAsync<AppOptions> = async (
           }
         })
 
-        connection.send(JSON.stringify({
+        if (!!messages.length) connection.send(JSON.stringify({
           messages
         })); 
     
