@@ -36,7 +36,8 @@ export namespace Message {
       SET_USER_PROPERTY,
       BATCH_TRANSFORM,
       BROADCAST_METHOD_CALL,
-      SYNC_TICK
+      SYNC_TICK,
+      LEAVE_GAME
     }
 
   export interface BatchTransform

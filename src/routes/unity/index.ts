@@ -5,7 +5,7 @@ import { Message } from "../../interfaces/unity/Message";
 
 interface IClientSocket {
   userId: string; 
-  roomKey: string; 
+  roomKey?: string; 
   username?: string; 
   isAlive: boolean; 
   properties: Map<string, string>;
@@ -67,11 +67,7 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
     connection.socket.batchTransforms = [];
     connection.socket.properties = new Map();
 
-    // connection.socket.on('pong', () => {
-    //   connection.socket.isAlive = true; 
-    // });
-
-    const disconnectProcedure = async () => {
+    const disconnectFromRoomProcedure = async () => {
       if (!connection.socket.roomKey) return; 
       const [ userIds, host ] = await redis.hmget(connection.socket.roomKey, "userIds", "host");
       
@@ -100,27 +96,9 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
       redis.hset(connection.socket.roomKey, "userIds", JSON.stringify(filteredUserIds));
     };
 
-    // TODO: Evalute Need for Heartbeat Code
-    /*
-    const pingPong = setInterval(async () => {
-      if (connection.socket.isAlive === false) {
-        console.log(`${connection.socket.userId} connection broken, terminating`);
-        await disconnectProcedure();
-        connection.socket.terminate(); // connection sometimes terminating even if connection is still alive, might be a client side problem
-
-        clearInterval(pingPong);
-        clearBatchTransform();
-      }
-      connection.socket.isAlive = false;
-      connection.socket.ping();
-    }, 5000);
-    */
-
     connection.socket.on("close", async () => {
-      //clearInterval(pingPong);
-
       console.log(`Connection closed by ${userId}`);
-      await disconnectProcedure();
+      await disconnectFromRoomProcedure();
     });
 
     connection.socket.on('message', async buffer => {
@@ -166,7 +144,21 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
             }
           });
         }
-  
+        else if (message.type === Message.Type.LEAVE_GAME) {
+          fastify.websocketServer.clients.forEach(client => {
+            if (
+              !!connection.socket.roomKey && 
+              client.roomKey !== connection.socket.roomKey
+            ) return; 
+            
+            client.send(JSON.stringify({
+              messages: [{
+                type: Message.Type.LEAVE_GAME,
+                body: { userId }
+              }]
+            }));
+          });
+        }
         else if (message.type === Message.Type.JOIN_ROOM) {
           const body = message.body as Message.RoomBody;
           const roomKey = generateRoomKey(body.name); 
