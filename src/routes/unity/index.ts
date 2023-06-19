@@ -147,7 +147,7 @@ const unity: FastifyPluginAsync = async (fastify, opts): Promise<void> => {
         else if (message.type === Message.Type.LEAVE_GAME) {
           fastify.websocketServer.clients.forEach(client => {
             if (
-              !!connection.socket.roomKey && 
+              !connection.socket.roomKey ||
               client.roomKey !== connection.socket.roomKey
             ) return; 
             
